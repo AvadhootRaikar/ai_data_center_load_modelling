@@ -1,0 +1,13 @@
+timestamp,epoch,step,gpu_util_percent,gpu_power_w,num_gpus,total_gpu_power_w,cpu_util_percent,note
+03:23:35,0,0,1.0,83.468,1,83.468,6.1,real_measurement
+03:23:42,0,0,0.0,84.113,1,84.113,10.1,real_measurement
+03:23:47,0,127,94.0,282.448,1,282.448,12.4,real_measurement
+03:23:52,0,217,94.0,283.779,1,283.779,12.0,real_measurement
+03:23:57,0,306,95.0,283.529,1,283.529,12.5,real_measurement
+03:24:02,0,394,94.0,283.343,1,283.343,12.0,real_measurement
+03:24:07,0,483,94.0,283.415,1,283.415,11.5,real_measurement
+03:24:12,0,572,96.0,282.686,1,282.686,12.1,real_measurement
+03:24:17,0,703,95.0,282.614,1,282.614,11.9,real_measurement
+03:24:22,0,792,94.0,283.683,1,283.683,11.8,real_measurement
+03:24:27,0,849,0.0,81.158,1,81.158,10.0,real_measurement
+03:24:27,0,-1,0.0,81.158,1,81.158,3.8,real_measurement
