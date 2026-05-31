@@ -3334,46 +3334,54 @@ else:
 
         tabs = st.tabs(
             [
-                "Overview",
-                "Grid / Power-Flow Analysis",
-                "Optimization Audit",
-                "Cost / Time Pricing",
-                "Load Balancing",
-                "Hosting Capacity",
-                "MLPerf Trace",
-                "Workload Comparison",
-                "Model Explanation",
-                "Calculation Trace",
+                "📊 Results Summary",
+                "⏱️ When to Run",
+                "🔍 Details",
+                "⚙️ Advanced",
             ]
         )
 
         with tabs[0]:
-            st.subheader("Measured Trace Simulation")
+            st.subheader("Your Optimization Results")
 
-            st.info(
-                f"Trace duration from CSV timestamps: "
-                f"{trace_duration_seconds:.0f} seconds "
-                f"({trace_duration_minutes:.2f} minutes / {trace_duration_hours:.3f} hours)."
-            )
-
-            no_energy_or_scheduling_change = (
-                scenario == "Baseline"
-                and not enable_load_balancing
-                and not (enable_delayed_training and delay_hours > 0)
-            )
-            metric_case_label = "Current" if no_energy_or_scheduling_change else "Scenario"
-            metric_case_detail = "No optimization selected" if no_energy_or_scheduling_change else active_scenario_label
-
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric(
-                "Baseline Facility Energy",
-                format_energy(baseline_energy_mwh),
-                help=(
-                    "Reference energy before any selected optimization or scheduling. "
-                    "Formula: sum(total facility power in MW × sample duration in hours). "
-                    "Facility power comes from GPU trace + node assumptions × nodes per center × number of centers × PUE."
-                ),
-            )
+            # Simple comparison cards
+            col_e, col_c, col_co = st.columns(3)
+            
+            with col_e:
+                st.metric("Energy Usage", format_energy(optimized_energy_mwh), 
+                         f"{((baseline_energy_mwh - optimized_energy_mwh) / baseline_energy_mwh * 100):.1f}% saving")
+            
+            with col_c:
+                st.metric("Cost", f"EUR {optimized_trace_cost_eur:.0f}", 
+                         f"{trace_cost_saving_percent:.1f}% saving")
+            
+            with col_co:
+                # Simple carbon calculation
+                carbon_per_kwh = 150  # Average g CO2/kWh
+                carbon_kg = (optimized_energy_mwh * 1000 * carbon_per_kwh) / 1000
+                baseline_carbon_kg = (baseline_energy_mwh * 1000 * carbon_per_kwh) / 1000
+                st.metric("Carbon Emissions", f"{carbon_kg:.0f} kg CO₂", 
+                         f"{((baseline_carbon_kg - carbon_kg) / baseline_carbon_kg * 100):.1f}% reduction")
+            
+            st.divider()
+            st.subheader("Annual Impact")
+            
+            col_ann_e, col_ann_c, col_ann_co = st.columns(3)
+            with col_ann_e:
+                annual_energy = (baseline_energy_mwh - optimized_energy_mwh) * 365
+                st.info(f"**{annual_energy:.1f} MWh** saved per year")
+            with col_ann_c:
+                annual_cost = trace_cost_saving_eur * 365
+                st.success(f"**EUR {annual_cost:,.0f}** saved per year")
+            with col_ann_co:
+                annual_carbon = (baseline_carbon_kg - carbon_kg) * 365
+                st.info(f"**{annual_carbon:.0f} tons** CO₂ avoided per year")
+            
+            st.divider()
+            
+            # Additional context - only if not baseline
+            if not no_energy_or_scheduling_change:
+                st.info(f"📊 Comparing: Baseline vs {active_scenario_label}")
             col2.metric(
                 f"{metric_case_label} Facility Energy ({metric_case_detail})",
                 format_energy(optimized_energy_mwh),
@@ -3583,115 +3591,72 @@ else:
             c4.metric("Power Flow Converged", "Yes" if converged_all else "No")
 
         with tabs[1]:
-            st.subheader("⚡ Pandapower Grid Dashboard")
-            st.caption(
-                "This tab is the electrical-engineering view of the project. It uses the same solved pandapower network as the simulation, "
-                "then exposes voltage, loading, losses, external-grid supply and element-level result tables in a cleaner order."
-            )
-
-            net = grid_snapshot["net"]
-            bus_df = grid_result_tables.get("bus", pd.DataFrame())
-            line_df = grid_result_tables.get("line", pd.DataFrame())
-            trafo_df = grid_result_tables.get("trafo", pd.DataFrame())
-            load_df = grid_result_tables.get("load", pd.DataFrame())
-            ext_df = grid_result_tables.get("ext_grid", pd.DataFrame())
-
-            backend_label = grid_backend
-            if grid_backend == "SimBench German benchmark grid":
-                backend_label = f"SimBench benchmark grid ({simbench_code})"
-
-            st.info(
-                f"Grid backend: **{backend_label}**. "
-                "The detailed values below come from pandapower result tables after `pp.runpp()`: "
-                "`net.res_bus`, `net.res_line`, `net.res_trafo`, `net.res_load`, and `net.res_ext_grid`. "
-                "For readability, the full element-level time-series result is summarized over time; the peak-load snapshot tables can be downloaded."
-            )
-
-            invalid_reasons = diagnose_invalid_powerflow_snapshot(grid_snapshot_summary, grid_snapshot)
-            if invalid_reasons:
-                st.error("No valid pandapower AC power-flow result for this grid-load combination.")
-                st.warning(
-                    "The selected grid is probably too weak for the injected HPC load, or pandapower could not produce valid "
-                    "`net.res_*` result tables. The dashboard will not show misleading NaN/0 W grid KPIs for this case."
-                )
-                st.markdown("#### Why the result is invalid")
-                st.write("\n".join([f"- {reason}" for reason in invalid_reasons]))
-                st.markdown("#### What to try")
-                st.dataframe(
-                    build_invalid_snapshot_recommendations(grid_snapshot, grid_snapshot_summary),
-                    use_container_width=True,
-                    hide_index=True,
-                )
-                st.info(
-                    "Recommended quick test: switch from an LV SimBench grid to an MV SimBench grid, or reduce centers/nodes. "
-                    "For the full 20-center HPC scenario, use the Synthetic HPC grid or an MV/HV-level benchmark scenario."
-                )
-                st.stop()
-
-            # Main grid health KPIs
-            st.markdown("### 1. Grid health at peak-load snapshot")
-            k1, k2, k3, k4, k5 = st.columns(5)
-            k1.metric(
-                "External grid supply",
-                format_power(grid_snapshot_summary["external_grid_p_mw"]),
-                help="Active power supplied by the slack/external grid. Source: sum(net.res_ext_grid.p_mw). It can be higher than the applied HPC load because it also covers existing grid loads and network losses.",
-            )
-            k2.metric(
-                "Applied HPC load",
-                format_power(grid_snapshot_summary["applied_load_p_mw"]),
-                help="Scheduled HPC active load applied to the pandapower network at the selected peak snapshot.",
-            )
-            k3.metric(
-                "Total active losses",
-                format_power(grid_snapshot_summary["total_losses_mw"]),
-                help="Line losses + transformer losses. Source: sum(net.res_line.pl_mw) + sum(net.res_trafo.pl_mw).",
-            )
-            k4.metric(
-                "Worst voltage",
-                f"{grid_snapshot_summary['min_voltage_pu']:.4f} pu",
-                help="Minimum bus voltage from net.res_bus.vm_pu. 0.95–1.05 pu is used as a practical operating band here.",
-            )
-            k5.metric(
-                "Worst loading",
-                f"L {grid_snapshot_summary['max_line_loading_percent']:.1f}% / T {grid_snapshot_summary['max_trafo_loading_percent']:.1f}%",
-                help="Maximum line and transformer loading from net.res_line.loading_percent and net.res_trafo.loading_percent.",
-            )
-
-            health_df = build_grid_health_cards(grid_snapshot_summary)
-            st.dataframe(health_df, use_container_width=True, hide_index=True)
-
-            extra_k1, extra_k2, extra_k3, extra_k4 = st.columns(4)
-            extra_k1.metric(
-                "External grid reactive power",
-                f"{grid_snapshot_summary.get('external_grid_q_mvar', 0.0):.2f} MVAr",
-                help="Reactive power supplied or absorbed by the external grid. Source: sum(net.res_ext_grid.q_mvar).",
-            )
-            extra_k2.metric(
-                "Power factor",
-                f"{grid_snapshot_summary.get('power_factor', float('nan')):.4f}",
-                help="Calculated from external-grid active/reactive power: P / sqrt(P² + Q²).",
-            )
-            extra_k3.metric(
-                "Loss share",
-                f"{grid_snapshot_summary.get('loss_percent_of_supply', 0.0):.3f}%",
-                help="Total active network losses divided by external-grid active power supply.",
-            )
-            extra_k4.metric(
-                "Voltage violations",
-                f"{int(grid_snapshot_summary.get('voltage_violations', 0))}",
-                help="Number of buses outside the 0.95–1.05 pu voltage band at the peak snapshot.",
-            )
-
-            st.markdown("### 2. Security checks at peak-load snapshot")
-            st.caption("These checks turn the raw pandapower result tables into clear grid-limit indicators.")
-            st.dataframe(build_snapshot_violation_table(grid_snapshot_summary), use_container_width=True, hide_index=True)
-
-            st.markdown("### 3. Time-series power-flow behavior")
-            st.caption(
-                "These plots are part of the grid analysis. They use the per-timestep values extracted from pandapower after every `pp.runpp()` call."
-            )
-
-            ts_col1, ts_col2 = st.columns(2)
+            st.subheader("⏱️ When Should You Run This Job?")
+            
+            st.markdown("**💰 Cost Perspective:** When is electricity cheapest?")
+            st.markdown("**🌱 Environment:** When is the grid greenest?")
+            
+            st.divider()
+            
+            try:
+                pricing_map, carbon_map, grid_df = load_grid_pricing_data()
+                
+                col_cost, col_carbon = st.columns(2)
+                
+                with col_cost:
+                    st.markdown("### Electricity Price by Hour")
+                    display_hourly_pricing_heatmap(training_profile, pricing_map)
+                    best_price_hour = grid_df.loc[grid_df['price_eur_kwh'].idxmin()]
+                    st.success(f"💰 **Cheapest:** {int(best_price_hour['time_period'].split('-')[0])}:00 "
+                              f"@ EUR {best_price_hour['price_eur_kwh']:.3f}/kWh")
+                
+                with col_carbon:
+                    st.markdown("### Carbon Intensity by Hour")
+                    display_carbon_intensity_heatmap(training_profile, pricing_map)
+                    best_carbon_hour = grid_df.loc[grid_df['carbon_gco2_kwh'].idxmin()]
+                    st.success(f"🌱 **Greenest:** {int(best_carbon_hour['time_period'].split('-')[0])}:00 "
+                              f"@ {int(best_carbon_hour['carbon_gco2_kwh'])} g CO₂/kWh")
+                
+                st.divider()
+                st.subheader("Grid Status Right Now")
+                display_pricing_status()
+                
+            except Exception as e:
+                st.error(f"Could not load scheduling data: {e}")
+        
+        with tabs[2]:
+            st.subheader("🔍 Technical Details")
+            
+            st.markdown("### Grid Analysis")
+            with st.expander("Grid Status at Peak Load"):
+                k1, k2, k3, k4, k5 = st.columns(5)
+                k1.metric("Voltage (min)", f"{grid_snapshot_summary.get('min_voltage_pu', 0):.3f} pu")
+                k2.metric("Line Loading", f"{grid_snapshot_summary.get('max_line_loading_percent', 0):.1f}%")
+                k3.metric("Transformer Load", f"{grid_snapshot_summary.get('max_trafo_loading_percent', 0):.1f}%")
+                k4.metric("Power Flow", "Converged ✓" if converged_all else "Failed ✗")
+                k5.metric("Network Losses", f"{grid_snapshot_summary.get('total_losses_mw', 0):.2f} MW")
+            
+            st.markdown("### Simulation Parameters")
+            with st.expander("Show Configuration"):
+                param_col1, param_col2 = st.columns(2)
+                with param_col1:
+                    st.metric("Number of Centers", number_of_centers)
+                    st.metric("Nodes per Center", nodes_per_center)
+                    st.metric("CPU Power per Node", f"{cpu_power_per_node} W")
+                with param_col2:
+                    st.metric("PUE Factor", pue)
+                    st.metric("Scenario", scenario)
+                    st.metric("Pricing Method", pricing_mode)
+            
+            st.markdown("### Optimization Details")
+            with st.expander("Show Audit Log"):
+                if 'audit_df' in locals() and not audit_df.empty:
+                    st.dataframe(audit_df, use_container_width=True, hide_index=True)
+                else:
+                    st.info("No audit data available")
+        
+        with tabs[3]:
+            st.subheader("⚙️ Advanced Analysis")
             with ts_col1:
                 power_df = build_comparison_df(baseline_results, optimized_results, "total_power_mw")
                 fig_power = px.area(
