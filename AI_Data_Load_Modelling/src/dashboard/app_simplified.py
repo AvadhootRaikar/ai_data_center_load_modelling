@@ -798,7 +798,7 @@ st.markdown("""
         Real-time German Grid Data (EPEX SPOT + SMARD)
     </p>
     <p>
-        💡 Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        💡 Last updated: {now}
     </p>
 </div>
-""".format(datetime=datetime), unsafe_allow_html=True)
+""".format(now=datetime.now().strftime('%Y-%m-%d %H:%M:%S')), unsafe_allow_html=True)
