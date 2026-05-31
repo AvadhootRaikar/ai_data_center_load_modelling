@@ -19,7 +19,6 @@ from profile_builder import build_selected_workload_profile
 from power_model import convert_training_profile_to_center
 from optimization_scenarios import apply_optimization_scenario, build_optimization_audit
 from capacity_analysis import run_capacity_analysis
-from grid_model import create_hpc_grid_model
 from run_simulation import cached_run_hpc_simulation, calculate_energy, calculate_energy_projections
 from cost_model import build_tou_price_table, calculate_time_of_day_costs, calculate_costs
 from ui_and_simulation_improvements import (
