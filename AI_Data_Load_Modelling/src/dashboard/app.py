@@ -39,16 +39,10 @@ from simulation.cost_model import (
     calculate_time_of_day_costs,
 )
 
-# ============================================================================
-# CONFIGURATION & STYLING
-# ============================================================================
 
-st.set_page_config(
-    page_title="HPC Optimization Dashboard",
-    page_icon="zap",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# ============================================================================
+# HELPER FUNCTIONS & STYLING
+# ============================================================================
 
 # Professional color palette
 COLORS = {
@@ -64,38 +58,6 @@ COLORS = {
     "dark": "#1D3557",         # Dark blue
     "light": "#F8F9FA"         # Light gray
 }
-
-# CSS styling
-st.markdown("""
-<style>
-    :root {
-        --primary: #0066CC;
-        --success: #00A651;
-        --danger: #E63946;
-        --carbon: #2A9D8F;
-    }
-    
-    .metric-card {
-        background: linear-gradient(135deg, #F8F9FA 0%, #FFFFFF 100%);
-        padding: 20px;
-        border-radius: 10px;
-        border-left: 4px solid var(--primary);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-    
-    .metric-value {
-        font-size: 24px;
-        font-weight: bold;
-        color: var(--primary);
-    }
-    
-    .metric-label {
-        font-size: 14px;
-        color: #666;
-        margin-top: 8px;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 def apply_chart_style(fig, title="", height=350, show_legend=True):
     """Apply consistent professional styling to all charts"""
