@@ -3050,192 +3050,192 @@ else:
             pue=pue,
         )
 
-            baseline_profile = training_profile.copy()
+        baseline_profile = training_profile.copy()
 
-            optimized_profile = apply_optimization_scenario(
-                training_profile,
-                scenario=scenario,
-                gpu_power_factor=gpu_power_factor,
-                pue_factor=pue_factor,
-                delay_steps=0,
-                gpu_slowdown_sensitivity=gpu_slowdown_sensitivity,
-                account_for_runtime_slowdown=account_for_runtime_slowdown,
-                gpu_runtime_model=gpu_runtime_model,
-            )
+        optimized_profile = apply_optimization_scenario(
+            training_profile,
+            scenario=scenario,
+            gpu_power_factor=gpu_power_factor,
+            pue_factor=pue_factor,
+            delay_steps=0,
+            gpu_slowdown_sensitivity=gpu_slowdown_sensitivity,
+            account_for_runtime_slowdown=account_for_runtime_slowdown,
+            gpu_runtime_model=gpu_runtime_model,
+        )
 
-            # Delayed Training is modeled as a clock start-time shift for pricing only.
-            # We do NOT insert idle zero-power samples into the workload trace, because that would
-            # distort average power and same-work metrics. The workload energy remains unchanged.
+        # Delayed Training is modeled as a clock start-time shift for pricing only.
+        # We do NOT insert idle zero-power samples into the workload trace, because that would
+        # distort average power and same-work metrics. The workload energy remains unchanged.
 
-            if enable_load_balancing:
-                optimized_profile = apply_center_level_load_balancing(
-                    optimized_profile,
-                    number_of_centers=number_of_centers,
-                    max_active_centers=max_active_centers,
-                    strategy=load_balancing_strategy,
-                )
-
-            update_progress(3, 0.40, "Phase 3/4: Running AC power flow analysis...")
-            
-            baseline_results = cached_run_hpc_simulation(
-                workload_df=baseline_profile,
-                number_of_centers=number_of_centers,
-                clusters_per_center=clusters_per_center,
-                racks_per_cluster=racks_per_cluster,
-                fast_mode=fast_mode,
-                grid_backend=grid_backend,
-                simbench_code=simbench_code,
-                include_existing_simbench_loads=include_existing_simbench_loads,
-            )
-
-            optimized_results = cached_run_hpc_simulation(
-                workload_df=optimized_profile,
-                number_of_centers=number_of_centers,
-                clusters_per_center=clusters_per_center,
-                racks_per_cluster=racks_per_cluster,
-                fast_mode=fast_mode,
-                grid_backend=grid_backend,
-                simbench_code=simbench_code,
-                include_existing_simbench_loads=include_existing_simbench_loads,
-            )
-
-            update_progress(4, 0.90, "Phase 4/4: Calculating costs and emissions...")
-            
-            baseline_results, baseline_energy_mwh = calculate_energy(baseline_results)
-            optimized_results, optimized_energy_mwh = calculate_energy(optimized_results)
-
-            baseline_projection = calculate_energy_projections(baseline_results)
-            optimized_projection = calculate_energy_projections(optimized_results)
-
-            price_table = build_tou_price_table(
-                night_price=tou_night_price,
-                morning_price=tou_morning_price,
-                midday_price=tou_midday_price,
-                evening_peak_price=tou_evening_peak_price,
-                late_price=tou_late_price,
-            )
-
-            if pricing_mode == "German-style time-of-day price":
-                baseline_cost_df, baseline_trace_cost_eur = calculate_time_of_day_costs(
-                    baseline_results,
-                    price_table=price_table,
-                    simulation_start_hour=simulation_start_hour,
-                )
-                optimized_cost_df, optimized_trace_cost_eur = calculate_time_of_day_costs(
-                    optimized_results,
-                    price_table=price_table,
-                    simulation_start_hour=(scenario_start_hour if enable_delayed_training else simulation_start_hour),
-                )
-            else:
-                baseline_cost_df, baseline_trace_cost_eur = calculate_costs(
-                    baseline_results,
-                    price_per_kwh=electricity_price_eur_per_kwh,
-                )
-                optimized_cost_df, optimized_trace_cost_eur = calculate_costs(
-                    optimized_results,
-                    price_per_kwh=electricity_price_eur_per_kwh,
-                )
-
-            trace_cost_saving_eur = baseline_trace_cost_eur - optimized_trace_cost_eur
-            trace_cost_saving_percent = (
-                trace_cost_saving_eur / baseline_trace_cost_eur * 100.0
-                if baseline_trace_cost_eur > 0 else 0.0
-            )
-
-            same_work_metrics = calculate_same_work_metrics(
-                baseline_results=baseline_results,
-                optimized_results=optimized_results,
-                number_of_centers=number_of_centers,
-            )
-
-            if enable_delayed_training and delay_hours > 0 and not enable_load_balancing:
-                same_work_metrics.update(
-                    {
-                        "work_completed_ratio": 1.0,
-                        "same_work_duration_hours": optimized_projection["trace_duration_hours"],
-                        "same_work_energy_mwh": optimized_energy_mwh,
-                        "same_work_energy_saving_mwh": baseline_energy_mwh - optimized_energy_mwh,
-                        "same_work_energy_saving_percent": (
-                            (baseline_energy_mwh - optimized_energy_mwh) / baseline_energy_mwh * 100.0
-                            if baseline_energy_mwh > 0 else 0.0
-                        ),
-                    }
-                )
-
-            # Pure center scheduling does not reduce the energy needed for the same work.
-            # It lowers simultaneous load inside the visible window by deferring/distributing work.
-            # For same-work interpretation, scheduling alone is not counted as an energy-saving mechanism
-            # unless a real power-changing scenario (GPU cap / cooling) is also selected.
-            if enable_load_balancing and scenario == "Baseline":
-                work_ratio = float(same_work_metrics.get("work_completed_ratio", 1.0))
-                same_work_metrics.update(
-                    {
-                        "same_work_duration_hours": baseline_projection["trace_duration_hours"] / max(work_ratio, 1e-9),
-                        "same_work_energy_mwh": baseline_energy_mwh,
-                        "same_work_energy_saving_mwh": 0.0,
-                        "same_work_energy_saving_percent": 0.0,
-                    }
-                )
-
-            audit_df, audit_notes = build_optimization_audit(
-                baseline_energy_mwh=baseline_energy_mwh,
-                optimized_energy_mwh=optimized_energy_mwh,
-                baseline_projection=baseline_projection,
-                optimized_projection=optimized_projection,
-                scenario=scenario,
-                optimized_profile=optimized_profile,
-                gpu_power_factor=gpu_power_factor,
-                gpu_slowdown_sensitivity=gpu_slowdown_sensitivity,
-                account_for_runtime_slowdown=account_for_runtime_slowdown,
-                pue_factor=pue_factor,
-                delay_steps=0,
-                enable_load_balancing=enable_load_balancing,
+        if enable_load_balancing:
+            optimized_profile = apply_center_level_load_balancing(
+                optimized_profile,
                 number_of_centers=number_of_centers,
                 max_active_centers=max_active_centers,
+                strategy=load_balancing_strategy,
             )
 
-            if enable_delayed_training and delay_hours > 0:
-                delay_row = pd.DataFrame([
-                    {
-                        "Metric": "Delayed Training / start-time shift",
-                        "Baseline": "0.00 h",
-                        "Scenario": f"{delay_hours:.2f} h",
-                        "Change": f"+{delay_hours:.2f} h before workload starts",
-                        "How it is calculated": "No zero-power samples are inserted. The same power trace is priced with a different scenario_start_hour. Energy stays unchanged; cost can change because clock-hour price(t) changes.",
-                    },
-                    {
-                        "Metric": "Scenario workload start clock hour",
-                        "Baseline": f"{simulation_start_hour:02d}:00",
-                        "Scenario": f"{(simulation_start_hour + delay_hours) % 24:.2f}:00",
-                        "Change": "clock shift only",
-                        "How it is calculated": "scenario_start_hour = (baseline_start_hour + delay_hours) mod 24.",
-                    },
-                ])
-                audit_df = pd.concat([audit_df, delay_row], ignore_index=True)
+        update_progress(3, 0.40, "Phase 3/4: Running AC power flow analysis...")
+        
+        baseline_results = cached_run_hpc_simulation(
+            workload_df=baseline_profile,
+            number_of_centers=number_of_centers,
+            clusters_per_center=clusters_per_center,
+            racks_per_cluster=racks_per_cluster,
+            fast_mode=fast_mode,
+            grid_backend=grid_backend,
+            simbench_code=simbench_code,
+            include_existing_simbench_loads=include_existing_simbench_loads,
+        )
 
-            capacity_df = None
-            if enable_capacity_analysis:
-                capacity_df = run_capacity_analysis(
-                    workload_df=training_profile,
-                    max_centers=capacity_max_centers,
-                    clusters_per_center=clusters_per_center,
-                    racks_per_cluster=racks_per_cluster,
-                    grid_backend=grid_backend,
-                    simbench_code=simbench_code,
-                    include_existing_simbench_loads=include_existing_simbench_loads,
-                )
+        optimized_results = cached_run_hpc_simulation(
+            workload_df=optimized_profile,
+            number_of_centers=number_of_centers,
+            clusters_per_center=clusters_per_center,
+            racks_per_cluster=racks_per_cluster,
+            fast_mode=fast_mode,
+            grid_backend=grid_backend,
+            simbench_code=simbench_code,
+            include_existing_simbench_loads=include_existing_simbench_loads,
+        )
 
-            mlperf_raw_summary_df, mlperf_checklist_df = build_mlperf_input_summary(training_path if workload_mode != "Inference Run" else inference_path)
-            training_raw_summary_df, training_checklist_df = build_mlperf_input_summary(training_path)
-            inference_raw_summary_df, inference_checklist_df = build_mlperf_input_summary(inference_path)
-            workload_comparison_df, workload_curve_df = cached_build_workload_comparison(
-                training_path=training_path,
-                inference_path=inference_path,
-                nodes_per_center=nodes_per_center,
-                cpu_power_per_node=cpu_power_per_node,
-                pue=pue,
-                number_of_centers=number_of_centers,
+        update_progress(4, 0.90, "Phase 4/4: Calculating costs and emissions...")
+        
+        baseline_results, baseline_energy_mwh = calculate_energy(baseline_results)
+        optimized_results, optimized_energy_mwh = calculate_energy(optimized_results)
+
+        baseline_projection = calculate_energy_projections(baseline_results)
+        optimized_projection = calculate_energy_projections(optimized_results)
+
+        price_table = build_tou_price_table(
+            night_price=tou_night_price,
+            morning_price=tou_morning_price,
+            midday_price=tou_midday_price,
+            evening_peak_price=tou_evening_peak_price,
+            late_price=tou_late_price,
+        )
+
+        if pricing_mode == "German-style time-of-day price":
+            baseline_cost_df, baseline_trace_cost_eur = calculate_time_of_day_costs(
+                baseline_results,
+                price_table=price_table,
+                simulation_start_hour=simulation_start_hour,
             )
+            optimized_cost_df, optimized_trace_cost_eur = calculate_time_of_day_costs(
+                optimized_results,
+                price_table=price_table,
+                simulation_start_hour=(scenario_start_hour if enable_delayed_training else simulation_start_hour),
+            )
+        else:
+            baseline_cost_df, baseline_trace_cost_eur = calculate_costs(
+                baseline_results,
+                price_per_kwh=electricity_price_eur_per_kwh,
+            )
+            optimized_cost_df, optimized_trace_cost_eur = calculate_costs(
+                optimized_results,
+                price_per_kwh=electricity_price_eur_per_kwh,
+            )
+
+        trace_cost_saving_eur = baseline_trace_cost_eur - optimized_trace_cost_eur
+        trace_cost_saving_percent = (
+            trace_cost_saving_eur / baseline_trace_cost_eur * 100.0
+            if baseline_trace_cost_eur > 0 else 0.0
+        )
+
+        same_work_metrics = calculate_same_work_metrics(
+            baseline_results=baseline_results,
+            optimized_results=optimized_results,
+            number_of_centers=number_of_centers,
+        )
+
+        if enable_delayed_training and delay_hours > 0 and not enable_load_balancing:
+            same_work_metrics.update(
+                {
+                    "work_completed_ratio": 1.0,
+                    "same_work_duration_hours": optimized_projection["trace_duration_hours"],
+                    "same_work_energy_mwh": optimized_energy_mwh,
+                    "same_work_energy_saving_mwh": baseline_energy_mwh - optimized_energy_mwh,
+                    "same_work_energy_saving_percent": (
+                        (baseline_energy_mwh - optimized_energy_mwh) / baseline_energy_mwh * 100.0
+                        if baseline_energy_mwh > 0 else 0.0
+                    ),
+                }
+            )
+
+        # Pure center scheduling does not reduce the energy needed for the same work.
+        # It lowers simultaneous load inside the visible window by deferring/distributing work.
+        # For same-work interpretation, scheduling alone is not counted as an energy-saving mechanism
+        # unless a real power-changing scenario (GPU cap / cooling) is also selected.
+        if enable_load_balancing and scenario == "Baseline":
+            work_ratio = float(same_work_metrics.get("work_completed_ratio", 1.0))
+            same_work_metrics.update(
+                {
+                    "same_work_duration_hours": baseline_projection["trace_duration_hours"] / max(work_ratio, 1e-9),
+                    "same_work_energy_mwh": baseline_energy_mwh,
+                    "same_work_energy_saving_mwh": 0.0,
+                    "same_work_energy_saving_percent": 0.0,
+                }
+            )
+
+        audit_df, audit_notes = build_optimization_audit(
+            baseline_energy_mwh=baseline_energy_mwh,
+            optimized_energy_mwh=optimized_energy_mwh,
+            baseline_projection=baseline_projection,
+            optimized_projection=optimized_projection,
+            scenario=scenario,
+            optimized_profile=optimized_profile,
+            gpu_power_factor=gpu_power_factor,
+            gpu_slowdown_sensitivity=gpu_slowdown_sensitivity,
+            account_for_runtime_slowdown=account_for_runtime_slowdown,
+            pue_factor=pue_factor,
+            delay_steps=0,
+            enable_load_balancing=enable_load_balancing,
+            number_of_centers=number_of_centers,
+            max_active_centers=max_active_centers,
+        )
+
+        if enable_delayed_training and delay_hours > 0:
+            delay_row = pd.DataFrame([
+                {
+                    "Metric": "Delayed Training / start-time shift",
+                    "Baseline": "0.00 h",
+                    "Scenario": f"{delay_hours:.2f} h",
+                    "Change": f"+{delay_hours:.2f} h before workload starts",
+                    "How it is calculated": "No zero-power samples are inserted. The same power trace is priced with a different scenario_start_hour. Energy stays unchanged; cost can change because clock-hour price(t) changes.",
+                },
+                {
+                    "Metric": "Scenario workload start clock hour",
+                    "Baseline": f"{simulation_start_hour:02d}:00",
+                    "Scenario": f"{(simulation_start_hour + delay_hours) % 24:.2f}:00",
+                    "Change": "clock shift only",
+                    "How it is calculated": "scenario_start_hour = (baseline_start_hour + delay_hours) mod 24.",
+                },
+            ])
+            audit_df = pd.concat([audit_df, delay_row], ignore_index=True)
+
+        capacity_df = None
+        if enable_capacity_analysis:
+            capacity_df = run_capacity_analysis(
+                workload_df=training_profile,
+                max_centers=capacity_max_centers,
+                clusters_per_center=clusters_per_center,
+                racks_per_cluster=racks_per_cluster,
+                grid_backend=grid_backend,
+                simbench_code=simbench_code,
+                include_existing_simbench_loads=include_existing_simbench_loads,
+            )
+
+        mlperf_raw_summary_df, mlperf_checklist_df = build_mlperf_input_summary(training_path if workload_mode != "Inference Run" else inference_path)
+        training_raw_summary_df, training_checklist_df = build_mlperf_input_summary(training_path)
+        inference_raw_summary_df, inference_checklist_df = build_mlperf_input_summary(inference_path)
+        workload_comparison_df, workload_curve_df = cached_build_workload_comparison(
+            training_path=training_path,
+            inference_path=inference_path,
+            nodes_per_center=nodes_per_center,
+            cpu_power_per_node=cpu_power_per_node,
+            pue=pue,
+            number_of_centers=number_of_centers,
+        )
 
         active_scenario_label = scenario
         if enable_delayed_training and delay_hours > 0:
