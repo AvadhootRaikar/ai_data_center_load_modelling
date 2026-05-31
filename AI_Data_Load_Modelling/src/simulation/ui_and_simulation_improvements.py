@@ -13,7 +13,7 @@ from pathlib import Path
 def load_grid_pricing_data():
     """Load real German grid pricing and carbon data from CSV."""
     try:
-        data_path = Path(__file__).parent.parent / "data" / "grid_data" / "german_grid_profile.csv"
+        data_path = Path(__file__).parent.parent.parent / "data" / "grid_data" / "german_grid_profile.csv"
         df = pd.read_csv(data_path)
         
         pricing_map = {}

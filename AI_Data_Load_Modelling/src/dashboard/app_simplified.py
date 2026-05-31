@@ -19,7 +19,7 @@ from profile_builder import build_selected_workload_profile
 from power_model import convert_training_profile_to_center
 from optimization_scenarios import apply_optimization_scenario, build_optimization_audit
 from capacity_analysis import run_capacity_analysis
-from run_simulation import cached_run_hpc_simulation, calculate_energy, calculate_energy_projections
+from run_simulation import run_hpc_simulation, calculate_energy
 from cost_model import build_tou_price_table, calculate_time_of_day_costs, calculate_costs
 from ui_and_simulation_improvements import (
     load_grid_pricing_data, get_auto_pricing_for_hour, 
@@ -141,6 +141,11 @@ def load_pricing_data():
         return pricing_map, carbon_map, grid_df
     except:
         return {}, {}, pd.DataFrame()
+
+@st.cache_data
+def cached_run_hpc_simulation(*args, **kwargs):
+    """Cached wrapper for simulation to improve performance"""
+    return run_hpc_simulation(*args, **kwargs)
 
 def create_animated_metric(value, label, unit, delta=None, icon="📊", color="#667eea"):
     """Create an animated metric card"""
