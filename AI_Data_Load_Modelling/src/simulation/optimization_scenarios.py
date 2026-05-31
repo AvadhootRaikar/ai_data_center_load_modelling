@@ -172,18 +172,33 @@ def build_optimization_audit(
     audit_df = pd.DataFrame(audit_data)
     
     # Build audit notes
+    gpu_limit_pct = (1-gpu_power_factor)*100
+    pue_improvement_pct = (1-pue_factor)*100
+    
+    # Determine formula description
+    if gpu_power_factor < 1.0:
+        formula = f"GPU power capped to {gpu_power_factor*100:.0f}% of baseline"
+    elif pue_factor < 1.0:
+        formula = f"PUE improved from 1.3 to {1.3*pue_factor:.2f}"
+    elif enable_load_balancing:
+        formula = "Load balancing across data centers with dynamic scaling"
+    else:
+        formula = "Workload timing optimization based on grid pricing signals"
+    
     audit_notes = {
         "scenario": scenario,
+        "formula": formula,
         "gpu_power_factor": gpu_power_factor,
         "pue_factor": pue_factor,
         "delay_steps": delay_steps,
         "gpu_slowdown_sensitivity": gpu_slowdown_sensitivity,
         "account_for_runtime_slowdown": account_for_runtime_slowdown,
         "enable_load_balancing": enable_load_balancing,
+        "performance_model": "GPU utilization-based" if account_for_runtime_slowdown else "not active",
         "summary": (
             f"Scenario: {scenario}\n"
-            f"GPU Power Limiting: {(1-gpu_power_factor)*100:.0f}%\n"
-            f"PUE Improvement: {(1-pue_factor)*100:.0f}%\n"
+            f"GPU Power Limiting: {gpu_limit_pct:.0f}%\n"
+            f"PUE Improvement: {pue_improvement_pct:.0f}%\n"
             f"Load Balancing: {'Enabled' if enable_load_balancing else 'Disabled'}\n"
             f"Energy Savings: {energy_savings_mwh:.4f} MWh ({energy_savings_pct:.1f}%)\n"
             f"Cost Savings: {cost_savings_eur:.2f} EUR\n"
