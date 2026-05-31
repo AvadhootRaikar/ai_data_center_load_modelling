@@ -252,7 +252,7 @@ def display_comparison_dashboard(baseline_results, optimized_results, optimizati
         st.subheader("Energy Consumption")
         col1a, col1b = st.columns(2)
         with col1a:
-            st.metric("Baseline", f"{baseline_energy:.4f} MWh", icon="📊")
+            st.metric("Baseline", f"{baseline_energy:.4f} MWh")
         with col1b:
             st.metric(optimization_name, f"{optimized_energy:.4f} MWh", f"{energy_savings_pct:.1f}%", delta_color="inverse")
     
@@ -260,7 +260,7 @@ def display_comparison_dashboard(baseline_results, optimized_results, optimizati
         st.subheader("Annual Cost")
         col2a, col2b = st.columns(2)
         with col2a:
-            st.metric("Baseline", f"EUR {baseline_cost:.0f}", icon="💶")
+            st.metric("Baseline", f"EUR {baseline_cost:.0f}")
         with col2b:
             st.metric(optimization_name, f"EUR {optimized_cost:.0f}", f"{cost_savings_pct:.1f}%", delta_color="inverse")
     
@@ -268,7 +268,7 @@ def display_comparison_dashboard(baseline_results, optimized_results, optimizati
         st.subheader("Carbon Emissions")
         col3a, col3b = st.columns(2)
         with col3a:
-            st.metric("Baseline", f"{baseline_carbon:.0f} kg", icon="🌍")
+            st.metric("Baseline", f"{baseline_carbon:.0f} kg")
         with col3b:
             st.metric(optimization_name, f"{optimized_carbon:.0f} kg", f"{carbon_savings_pct:.1f}%", delta_color="inverse")
     
