@@ -1,0 +1,6 @@
+time_period,price_eur_mwh,price_eur_kwh,carbon_gco2_kwh,wind_pct,solar_pct,fossil_pct,hydro_pct,biomass_pct
+Off-peak (00:00-06:00),27,0.027,100,35,5,35,15,10
+Early Morning (06:00-10:00),44,0.044,200,30,10,40,12,8
+Midday (10:00-16:00),31,0.031,80,25,45,15,10,5
+Evening Peak (16:00-21:00),50,0.05,250,28,30,30,8,4
+Late Night (21:00-00:00),35,0.035,120,38,8,40,10,4

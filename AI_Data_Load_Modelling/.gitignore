@@ -38,11 +38,15 @@ wheels/
 .streamlit/
 .streamlit/secrets.toml
 
-# Data and outputs (too large for GitHub)
+# Data and outputs (too large for GitHub - but include grid_data and raw_runs)
 outputs/
-data/raw_runs/
-*.csv
 *.log
+
+# BUT ALLOW these data files:
+!data/
+!data/grid_data/
+!data/raw_runs/
+!*.csv
 
 # OS
 .DS_Store
