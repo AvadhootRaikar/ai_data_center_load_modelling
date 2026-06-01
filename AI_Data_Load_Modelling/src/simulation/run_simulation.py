@@ -7,7 +7,7 @@ for each timestep of the workload.
 
 import pandas as pd
 import pandapower as pp
-from grid_model import create_hpc_grid
+from .grid_model import create_hpc_grid
 
 
 def run_hpc_simulation(

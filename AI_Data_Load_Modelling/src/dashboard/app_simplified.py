@@ -11,17 +11,20 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime, timedelta
+from pathlib import Path
 import sys
-sys.path.insert(0, "src/simulation")
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import existing simulation modules
-from profile_builder import build_selected_workload_profile
-from power_model import convert_training_profile_to_center
-from optimization_scenarios import apply_optimization_scenario, build_optimization_audit
-from capacity_analysis import run_capacity_analysis
-from run_simulation import run_hpc_simulation, calculate_energy
-from cost_model import build_tou_price_table, calculate_time_of_day_costs, calculate_costs
-from ui_and_simulation_improvements import (
+from simulation.profile_builder import build_selected_workload_profile
+from simulation.power_model import convert_training_profile_to_center
+from simulation.optimization_scenarios import apply_optimization_scenario, build_optimization_audit
+from simulation.capacity_analysis import run_capacity_analysis
+from simulation.run_simulation import run_hpc_simulation, calculate_energy
+from simulation.cost_model import build_tou_price_table, calculate_time_of_day_costs, calculate_costs
+from simulation.ui_and_simulation_improvements import (
     load_grid_pricing_data, get_auto_pricing_for_hour, 
     calculate_workload_cost_by_time, calculate_workload_carbon_by_time,
     calculate_grid_stability_impact, apply_realistic_pue_profile
