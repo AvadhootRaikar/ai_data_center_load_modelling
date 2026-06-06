@@ -416,7 +416,7 @@ with tab1:
     with col2:
         create_animated_metric(
             f"€{optimized_cost:.0f}",
-            "Annual Cost",
+            "Cost",
             "EUR",
             delta=cost_savings,
             icon="💰",
