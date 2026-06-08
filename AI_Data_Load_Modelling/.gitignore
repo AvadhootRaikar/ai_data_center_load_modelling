@@ -56,3 +56,9 @@ Thumbs.db
 *.csv.bak
 temp/
 cache/
+
+# Environments
+.env
+.env.local
+.env.*
+
