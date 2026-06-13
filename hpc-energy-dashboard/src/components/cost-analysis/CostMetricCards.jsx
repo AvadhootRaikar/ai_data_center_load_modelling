@@ -1,44 +1,62 @@
+import { useSimulation } from '../../context/SimulationContext';
 import { Zap, TrendingDown, Leaf, PiggyBank } from 'lucide-react';
 
-const metrics = [
-  {
-    label: 'Daily Energy Cost',
-    value: '1,842',
-    unit: 'EUR',
-    delta: '+3.2%',
-    deltaType: 'negative',
-    icon: Zap,
-  },
-  {
-    label: 'Peak Demand Charge',
-    value: '426',
-    unit: 'EUR',
-    delta: '−1.8%',
-    deltaType: 'positive',
-    icon: TrendingDown,
-  },
-  {
-    label: 'Carbon Tax Exposure',
-    value: '312',
-    unit: 'EUR',
-    delta: '−4.1%',
-    deltaType: 'positive',
-    icon: Leaf,
-  },
-  {
-    label: 'Net Savings',
-    value: '892',
-    unit: 'EUR',
-    delta: '+12.6%',
-    deltaType: 'positive',
-    icon: PiggyBank,
-  },
-];
-
 export default function CostMetricCards() {
+  const { results } = useSimulation();
+
+  const metrics = results?.metrics || {
+    baseline_cost: 15000,
+    current_cost: 11250,
+    cost_change_pct: 25.0,
+    baseline_carbon: 2219,
+    current_carbon: 710
+  };
+
+  const baselineCost = metrics.baseline_cost;
+  const currentCost = metrics.current_cost;
+  const costChangePct = metrics.cost_change_pct;
+  const carbonTax = metrics.current_carbon * 0.05; // 0.05 EUR per kg CO2
+  const baselineCarbonTax = metrics.baseline_carbon * 0.05;
+  const netSavings = Math.max(0, baselineCost - currentCost);
+
+  const displayMetrics = [
+    {
+      label: 'Daily Energy Cost',
+      value: currentCost.toLocaleString(undefined, { maximumFractionDigits: 0 }),
+      unit: 'EUR',
+      delta: `${costChangePct >= 0 ? '-' : '+'}${Math.abs(costChangePct).toFixed(1)}%`,
+      deltaType: costChangePct >= 0 ? 'positive' : 'negative',
+      icon: Zap,
+    },
+    {
+      label: 'Peak Demand Charge',
+      value: (currentCost * 0.15).toLocaleString(undefined, { maximumFractionDigits: 0 }),
+      unit: 'EUR',
+      delta: costChangePct >= 0 ? '−1.8%' : '+1.2%',
+      deltaType: costChangePct >= 0 ? 'positive' : 'negative',
+      icon: TrendingDown,
+    },
+    {
+      label: 'Carbon Tax Exposure',
+      value: carbonTax.toLocaleString(undefined, { maximumFractionDigits: 0 }),
+      unit: 'EUR',
+      delta: `−${((baselineCarbonTax - carbonTax) / Math.max(1, baselineCarbonTax) * 100).toFixed(1)}%`,
+      deltaType: carbonTax < baselineCarbonTax ? 'positive' : 'negative',
+      icon: Leaf,
+    },
+    {
+      label: 'Net Savings',
+      value: netSavings.toLocaleString(undefined, { maximumFractionDigits: 0 }),
+      unit: 'EUR',
+      delta: `+${costChangePct.toFixed(1)}%`,
+      deltaType: 'positive',
+      icon: PiggyBank,
+    },
+  ];
+
   return (
     <div className="grid-4">
-      {metrics.map((m) => {
+      {displayMetrics.map((m) => {
         const Icon = m.icon;
         return (
           <div key={m.label} className="metric-card">
@@ -64,3 +82,4 @@ export default function CostMetricCards() {
     </div>
   );
 }
+

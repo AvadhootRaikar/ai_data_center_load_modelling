@@ -1,4 +1,5 @@
 import { Activity, Clock, Cpu } from 'lucide-react';
+import { useSimulation } from '../context/SimulationContext';
 import PeakSnapshotSummary from '../components/grid-analysis/PeakSnapshotSummary';
 import SecurityChecksTable from '../components/grid-analysis/SecurityChecksTable';
 import PowerFlowChart from '../components/grid-analysis/PowerFlowChart';
@@ -7,6 +8,8 @@ import SimulationResultsTable from '../components/grid-analysis/SimulationResult
 import CriticalViolationBanner from '../components/grid-analysis/CriticalViolationBanner';
 
 export default function GridAnalysis() {
+  const { hasRun } = useSimulation();
+
   return (
     <>
       <div className="page-header">
@@ -23,7 +26,7 @@ export default function GridAnalysis() {
             </span>
             <span>
               <Clock size={12} />
-              Last run: <strong>13 Jun 2026, 16:38</strong>
+              Last run: {hasRun ? <strong>Just now</strong> : <strong>Baseline simulation loaded</strong>}
             </span>
           </div>
         </div>
@@ -40,3 +43,4 @@ export default function GridAnalysis() {
     </>
   );
 }
+

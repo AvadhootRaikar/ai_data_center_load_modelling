@@ -1,54 +1,11 @@
 import { Shield } from 'lucide-react';
-
-const contingencyData = [
-  {
-    element: 'Trafo HV/MV',
-    type: '110→20 kV Transformer',
-    metric: 'Loading',
-    preFault: '42.1%',
-    postFault: '78.3%',
-    margin: '21.7%',
-    status: 'PASS',
-  },
-  {
-    element: 'Line MV-01',
-    type: '20 kV Cable',
-    metric: 'Loading',
-    preFault: '34.5%',
-    postFault: '67.2%',
-    margin: '32.8%',
-    status: 'PASS',
-  },
-  {
-    element: 'Line MV-02',
-    type: '20 kV Cable',
-    metric: 'Loading',
-    preFault: '28.9%',
-    postFault: '89.1%',
-    margin: '10.9%',
-    status: 'WARN',
-  },
-  {
-    element: 'Trafo MV/LV-1',
-    type: '20→0.4 kV Transformer',
-    metric: 'Loading',
-    preFault: '56.7%',
-    postFault: '92.4%',
-    margin: '7.6%',
-    status: 'WARN',
-  },
-  {
-    element: 'External Grid',
-    type: 'Grid Connection',
-    metric: 'Voltage',
-    preFault: '1.00 p.u.',
-    postFault: '0.97 p.u.',
-    margin: '0.03 p.u.',
-    status: 'PASS',
-  },
-];
+import { useSimulation } from '../../context/SimulationContext';
 
 export default function SecurityChecksTable() {
+  const { results } = useSimulation();
+  
+  const contingencyData = results?.security_checks || [];
+
   return (
     <div className="card">
       <div className="card-header">
@@ -57,7 +14,7 @@ export default function SecurityChecksTable() {
           <span className="card-title">N-1 Security Contingency Analysis</span>
         </div>
         <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-muted-foreground)' }}>
-          5 elements evaluated
+          {contingencyData.length} elements evaluated
         </span>
       </div>
       <table className="data-table">

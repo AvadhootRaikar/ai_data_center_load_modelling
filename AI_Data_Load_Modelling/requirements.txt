@@ -6,3 +6,5 @@ pandapower>=2.13.0
 simbench>=1.2.2
 networkx>=3.0
 pyvis>=0.3.2
+fastapi>=0.100.0
+uvicorn>=0.20.0

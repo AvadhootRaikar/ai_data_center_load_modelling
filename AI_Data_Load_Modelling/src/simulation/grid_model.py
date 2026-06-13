@@ -14,6 +14,7 @@ def create_german_hpc_grid(
     number_of_centers: int,
     clusters_per_center: int = 4,
     racks_per_cluster: int = 10,
+    transformer_headroom: float = 1.2,
 ):
     """
     Creates synthetic HPC center-level pandapower grid model.
@@ -57,7 +58,7 @@ def create_german_hpc_grid(
             net,
             hv_bus=bus_center_hv,
             lv_bus=bus_center_mv,
-            sn_mva=63,
+            sn_mva=63.0 * (transformer_headroom / 1.2),
             vn_hv_kv=110,
             vn_lv_kv=20,
             vk_percent=12.0,
@@ -98,7 +99,7 @@ def create_german_hpc_grid(
                 net,
                 hv_bus=bus_cluster_mv,
                 lv_bus=bus_cluster_lv,
-                sn_mva=2.5,
+                sn_mva=2.5 * (transformer_headroom / 1.2),
                 vn_hv_kv=20,
                 vn_lv_kv=0.4,
                 vk_percent=6.0,
@@ -229,6 +230,7 @@ def create_hpc_grid(
     grid_backend: str = "Synthetic HPC grid",
     simbench_code: str = "1-MV-rural--0-sw",
     include_existing_simbench_loads: bool = True,
+    transformer_headroom: float = 1.2,
 ):
     """Factory function to select grid type."""
     if grid_backend == "SimBench German benchmark grid":
@@ -244,4 +246,5 @@ def create_hpc_grid(
         number_of_centers=number_of_centers,
         clusters_per_center=clusters_per_center,
         racks_per_cluster=racks_per_cluster,
+        transformer_headroom=transformer_headroom,
     )

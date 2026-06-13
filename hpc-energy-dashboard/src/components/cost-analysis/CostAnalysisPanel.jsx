@@ -1,11 +1,5 @@
+import { useSimulation } from '../../context/SimulationContext';
 import { PieChart } from 'lucide-react';
-
-const segments = [
-  { label: 'Energy', pct: 62, color: '#3b82f6' },
-  { label: 'Demand', pct: 18, color: '#8b5cf6' },
-  { label: 'Carbon', pct: 12, color: '#f59e0b' },
-  { label: 'Other', pct: 8, color: '#94a3b8' },
-];
 
 // Build SVG donut arc segments
 function polarToCartesian(cx, cy, r, angle) {
@@ -21,6 +15,27 @@ function describeArc(cx, cy, r, startAngle, endAngle) {
 }
 
 export default function CostAnalysisPanel() {
+  const { results, targetPue, enableCoolingUpgrade } = useSimulation();
+
+  const metrics = results?.metrics || {
+    current_cost: 11250,
+    baseline_cost: 15000,
+    current_energy: 124.5
+  };
+
+  const currentPue = enableCoolingUpgrade ? Math.max(1.10, targetPue - 0.15) : targetPue;
+  const itPct = Math.round((1.0 / currentPue) * 78);
+  const coolingPct = Math.round(((currentPue - 1.0) / currentPue) * 78);
+  const carbonPct = 14;
+  const otherPct = Math.max(2, 100 - itPct - coolingPct - carbonPct);
+
+  const segments = [
+    { label: 'Energy (IT)', pct: itPct, color: '#3b82f6' },
+    { label: 'Cooling (PUE)', pct: coolingPct, color: '#8b5cf6' },
+    { label: 'Carbon Tax', pct: carbonPct, color: '#f59e0b' },
+    { label: 'Other Aux', pct: otherPct, color: '#94a3b8' },
+  ];
+
   const cx = 70;
   const cy = 70;
   const r = 52;
@@ -36,6 +51,10 @@ export default function CostAnalysisPanel() {
       path: describeArc(cx, cy, r, startAngle, startAngle + sweep - 0.5),
     };
   });
+
+  const dailyTotal = metrics.current_cost;
+  const avgRate = dailyTotal / Math.max(0.1, metrics.current_energy);
+  const annualProjection = dailyTotal * 365;
 
   return (
     <div className="card">
@@ -63,11 +82,11 @@ export default function CostAnalysisPanel() {
               x={cx}
               y={cy - 4}
               textAnchor="middle"
-              fontSize="16"
+              fontSize="14"
               fontWeight="700"
               fill="var(--color-foreground)"
             >
-              €2,580
+              €{dailyTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </text>
             <text
               x={cx}
@@ -98,13 +117,14 @@ export default function CostAnalysisPanel() {
         {/* Summary rows */}
         <div className="cost-breakdown-item">
           <span className="cost-breakdown-label">Avg EUR/MWh</span>
-          <span className="cost-breakdown-value">€31.20</span>
+          <span className="cost-breakdown-value">€{avgRate.toFixed(2)}</span>
         </div>
         <div className="cost-breakdown-item">
           <span className="cost-breakdown-label">Annual Projection</span>
-          <span className="cost-breakdown-value">€672,330</span>
+          <span className="cost-breakdown-value">€{annualProjection.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
         </div>
       </div>
     </div>
   );
 }
+

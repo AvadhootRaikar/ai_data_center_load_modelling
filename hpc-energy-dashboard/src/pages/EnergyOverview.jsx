@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Play, Download, Clock } from 'lucide-react';
+import { Play, Download, Clock, Loader2 } from 'lucide-react';
+import { useSimulation } from '../context/SimulationContext';
 import MetricCard from '../components/shared/MetricCard';
 import ProjectionsTable from '../components/energy-overview/ProjectionsTable';
 import GridHealthPanel from '../components/energy-overview/GridHealthPanel';
@@ -7,15 +8,54 @@ import AlertCards from '../components/energy-overview/AlertCards';
 
 const TABS = ['Current', 'Grid', 'Cost'];
 
-const METRICS = [
-  { label: 'Baseline Facility Energy', value: '142.8', unit: 'MWh', change: '+2.4', changePct: '1.7', positive: false },
-  { label: 'Current Facility Energy', value: '124.5', unit: 'MWh', change: '-18.3', changePct: '12.8', positive: true },
-  { label: 'Weighted Avg Power', value: '8.42', unit: 'MW', change: '-0.91', changePct: '9.7', positive: true },
-  { label: 'Peak Facility Power', value: '11.2', unit: 'MW', change: '-1.4', changePct: '11.1', positive: true },
-];
-
 export default function EnergyOverview() {
   const [activeTab, setActiveTab] = useState('Current');
+  const { results, loading, runSimulation } = useSimulation();
+
+  const metrics = results?.metrics || {
+    baseline_energy: 142.8,
+    current_energy: 124.5,
+    energy_change_pct: 12.8,
+    weighted_avg_power: 8.42,
+    peak_power: 11.2
+  };
+
+  const energySaved = (metrics.baseline_energy - metrics.current_energy);
+
+  const METRICS = [
+    { 
+      label: 'Baseline Facility Energy', 
+      value: metrics.baseline_energy.toFixed(1), 
+      unit: 'MWh', 
+      change: 'Benchmark', 
+      changePct: '0.0', 
+      positive: true 
+    },
+    { 
+      label: 'Current Facility Energy', 
+      value: metrics.current_energy.toFixed(1), 
+      unit: 'MWh', 
+      change: `-${energySaved.toFixed(1)}`, 
+      changePct: metrics.energy_change_pct.toString(), 
+      positive: energySaved >= 0 
+    },
+    { 
+      label: 'Weighted Avg Power', 
+      value: metrics.weighted_avg_power.toFixed(2), 
+      unit: 'MW', 
+      change: metrics.weighted_avg_power < 9.0 ? 'Optimized' : 'Normal', 
+      changePct: '9.7', 
+      positive: true 
+    },
+    { 
+      label: 'Peak Facility Power', 
+      value: metrics.peak_power.toFixed(1), 
+      unit: 'MW', 
+      change: metrics.peak_power < 12.0 ? 'Stable' : 'High', 
+      changePct: '11.1', 
+      positive: true 
+    },
+  ];
 
   return (
     <>
@@ -26,7 +66,7 @@ export default function EnergyOverview() {
           <div className="page-header-meta">
             <span>
               <Clock size={12} />
-              LAST SUCCESSFUL RUN: <strong>TODAY, 14:02:11</strong>
+              LAST SUCCESSFUL RUN: <strong>{loading ? 'SIMULATING...' : 'TODAY, 14:02:11'}</strong>
             </span>
           </div>
         </div>
@@ -42,13 +82,18 @@ export default function EnergyOverview() {
               </button>
             ))}
           </div>
-          <button className="btn">
+          <button className="btn" disabled style={{ opacity: 0.5 }}>
             <Download size={14} />
             Export CSV
           </button>
-          <button className="btn btn-primary">
-            <Play size={14} />
-            Run Simulation
+          <button 
+            className="btn btn-primary" 
+            onClick={runSimulation} 
+            disabled={loading}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+            {loading ? 'Running...' : 'Run Simulation'}
           </button>
         </div>
       </div>
@@ -74,3 +119,4 @@ export default function EnergyOverview() {
     </>
   );
 }
+

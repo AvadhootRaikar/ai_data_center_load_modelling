@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Save, Upload, Play, ChevronDown, ChevronRight, Clock } from 'lucide-react';
+import { Save, Upload, Play, ChevronDown, ChevronRight, Clock, Loader2 } from 'lucide-react';
+import { useSimulation } from '../context/SimulationContext';
 
 import ConfigSnapshotBar from '../components/configuration/ConfigSnapshotBar';
 import WorkloadDataPanel from '../components/configuration/WorkloadDataPanel';
@@ -12,6 +13,7 @@ import ProjectionForecastingSection from '../components/configuration/Projection
 
 export default function Configuration() {
   const [delayedOpen, setDelayedOpen] = useState(false);
+  const { runSimulation, loading, error, hasRun } = useSimulation();
 
   return (
     <>
@@ -30,17 +32,56 @@ export default function Configuration() {
         <div className="toolbar-right">
           <div className="toolbar-status">
             <div className="toolbar-status-label">Status</div>
-            <div className="toolbar-status-value">Ready to Run</div>
+            <div className="toolbar-status-value">
+              {loading ? 'Simulating...' : hasRun ? 'Simulation Complete' : 'Ready to Run'}
+            </div>
           </div>
-          <button className="btn btn-primary btn-lg">
-            <Play size={14} />
-            Run Simulation
+          <button 
+            className="btn btn-primary btn-lg" 
+            onClick={runSimulation} 
+            disabled={loading}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+            {loading ? 'Running...' : 'Run Simulation'}
           </button>
         </div>
       </div>
 
       {/* ── Scrollable body ── */}
-      <div className="scrollable-body">
+      <div className="scrollable-body" style={{ position: 'relative' }}>
+        {error && (
+          <div className="error-box" style={{ 
+            background: 'var(--color-danger-bg)', 
+            border: '1px solid var(--color-danger)', 
+            color: 'var(--color-danger-foreground)', 
+            padding: '12px 16px', 
+            borderRadius: 'var(--radius-md)', 
+            marginBottom: 16,
+            fontSize: 'var(--text-sm)'
+          }}>
+            {error}
+          </div>
+        )}
+
+        {loading && (
+          <div style={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(255,255,255,0.6)',
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 'var(--radius-lg)'
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+              <Loader2 size={32} className="animate-spin" style={{ color: 'var(--color-primary)' }} />
+              <span style={{ fontWeight: 600, color: 'var(--color-foreground)' }}>Running Power Flow Simulation...</span>
+            </div>
+          </div>
+        )}
+
         {/* Configuration Snapshot */}
         <div>
           <div className="section-label">Configuration Snapshot</div>
@@ -88,3 +129,4 @@ export default function Configuration() {
     </>
   );
 }
+

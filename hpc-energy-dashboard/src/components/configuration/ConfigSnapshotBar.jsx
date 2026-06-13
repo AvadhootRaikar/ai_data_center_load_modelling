@@ -1,29 +1,35 @@
+import { useSimulation } from '../../context/SimulationContext';
 import { Cpu, Zap, Layers, Clock } from 'lucide-react';
 
-const items = [
-  {
-    icon: Cpu,
-    label: 'Total Compute Nodes',
-    value: '64 × 8 = 512 Nodes',
-  },
-  {
-    icon: Zap,
-    label: 'Current Target PUE',
-    value: '1.08',
-  },
-  {
-    icon: Layers,
-    label: 'Simulation Mode',
-    value: 'Static Load Trace',
-  },
-  {
-    icon: Clock,
-    label: 'Pricing Method',
-    value: 'EPEX SPOT (DE)',
-  },
-];
-
 export default function ConfigSnapshotBar() {
+  const { nodesPerCenter, numberOfCenters, targetPue, enableCoolingUpgrade, workloadMode } = useSimulation();
+  
+  const currentPue = enableCoolingUpgrade ? Math.max(1.10, targetPue - 0.15) : targetPue;
+  const totalNodes = nodesPerCenter * numberOfCenters;
+
+  const items = [
+    {
+      icon: Cpu,
+      label: 'Total Compute Nodes',
+      value: `${nodesPerCenter} × ${numberOfCenters} = ${totalNodes} Nodes`,
+    },
+    {
+      icon: Zap,
+      label: 'Current Target PUE',
+      value: currentPue.toFixed(2),
+    },
+    {
+      icon: Layers,
+      label: 'Simulation Mode',
+      value: workloadMode,
+    },
+    {
+      icon: Clock,
+      label: 'Pricing Method',
+      value: 'EPEX SPOT (DE)',
+    },
+  ];
+
   return (
     <div className="snapshot-bar">
       {items.map((item) => (
@@ -40,3 +46,4 @@ export default function ConfigSnapshotBar() {
     </div>
   );
 }
+

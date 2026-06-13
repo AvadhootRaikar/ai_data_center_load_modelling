@@ -1,17 +1,31 @@
+import { useSimulation } from '../../context/SimulationContext';
 import { Calculator } from 'lucide-react';
 
-const projections = [
-  { label: 'Monthly Cost', value: '€56,028', type: 'cost' },
-  { label: 'Quarterly Cost', value: '€168,083', type: 'cost' },
-  { label: 'Annual Cost', value: '€672,330', type: 'cost' },
-];
-
-const savings = [
-  { label: 'Monthly Savings', value: '€32,556', type: 'saving' },
-  { label: 'Annual Savings', value: '€390,672', type: 'saving' },
-];
-
 export default function EconomicProjectionPanel() {
+  const { results, forecastHorizon } = useSimulation();
+
+  const metrics = results?.metrics || {
+    baseline_cost: 15000,
+    current_cost: 11250,
+    annual_cost_saved: 3750 * 365
+  };
+
+  const dailyCost = metrics.current_cost;
+  const dailySavings = Math.max(0, metrics.baseline_cost - metrics.current_cost);
+
+  const projections = [
+    { label: 'Monthly Cost (30 days)', value: `€${(dailyCost * 30).toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+    { label: 'Quarterly Cost (90 days)', value: `€${(dailyCost * 90).toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+    { label: `${forecastHorizon}-Day Cost`, value: `€${(dailyCost * forecastHorizon).toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+    { label: 'Annual Cost (365 days)', value: `€${(dailyCost * 365).toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+  ];
+
+  const savings = [
+    { label: 'Monthly Savings (30 days)', value: `€${(dailySavings * 30).toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+    { label: `${forecastHorizon}-Day Savings`, value: `€${(dailySavings * forecastHorizon).toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+    { label: 'Annual Savings (365 days)', value: `€${(dailySavings * 365).toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+  ];
+
   return (
     <div className="card">
       <div className="card-header">
@@ -93,3 +107,4 @@ export default function EconomicProjectionPanel() {
     </div>
   );
 }
+

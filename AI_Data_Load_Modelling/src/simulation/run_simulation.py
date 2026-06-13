@@ -19,6 +19,7 @@ def run_hpc_simulation(
     grid_backend: str = "Synthetic HPC grid",
     simbench_code: str = "1-MV-rural--0-sw",
     include_existing_simbench_loads: bool = True,
+    transformer_headroom: float = 1.2,
 ) -> pd.DataFrame:
     """
     Runs pandapower power flow for each timestep.
@@ -37,6 +38,7 @@ def run_hpc_simulation(
         grid_backend=grid_backend,
         simbench_code=simbench_code,
         include_existing_simbench_loads=include_existing_simbench_loads,
+        transformer_headroom=transformer_headroom,
     )
 
     results = []

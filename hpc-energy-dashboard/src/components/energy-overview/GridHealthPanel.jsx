@@ -1,14 +1,41 @@
+import { useSimulation } from '../../context/SimulationContext';
 import { Zap } from 'lucide-react';
-
-const HEALTH_ROWS = [
-  { label: 'Voltage Stability', sublabel: 'Bus voltage deviation', value: '99.2%', status: 'pass' },
-  { label: 'Transformer Load', sublabel: 'Peak capacity usage', value: '84.0%', status: 'warn' },
-  { label: 'Convergence Rate', sublabel: 'Solver iterations', value: '100%', status: 'pass' },
-];
-
-const STATUS_LABELS = { pass: 'PASS', warn: 'WARN', fail: 'FAIL' };
+import { Link } from 'react-router-dom';
 
 export default function GridHealthPanel() {
+  const { results } = useSimulation();
+
+  const gh = results?.grid_health || {
+    voltage_stability: 99.2,
+    transformer_load: 84.0,
+    solver_load: 76,
+    stability_status: 'Healthy',
+    insight_message: 'The current scenario shows a 12.8% energy reduction compared to the baseline, primarily driven by PUE optimization and scheduled training delays.'
+  };
+
+  const HEALTH_ROWS = [
+    { 
+      label: 'Voltage Stability', 
+      sublabel: 'Bus voltage deviation', 
+      value: `${gh.voltage_stability.toFixed(1)}%`, 
+      status: gh.voltage_stability > 95 ? 'pass' : 'warn' 
+    },
+    { 
+      label: 'Transformer Load', 
+      sublabel: 'Peak capacity usage', 
+      value: `${gh.transformer_load.toFixed(1)}%`, 
+      status: gh.transformer_load < 80 ? 'pass' : (gh.transformer_load < 95 ? 'warn' : 'fail') 
+    },
+    { 
+      label: 'Solver CPU Load', 
+      sublabel: 'PandaPower load', 
+      value: `${gh.solver_load}%`, 
+      status: gh.solver_load < 50 ? 'pass' : 'warn' 
+    },
+  ];
+
+  const STATUS_LABELS = { pass: 'PASS', warn: 'WARN', fail: 'FAIL' };
+
   return (
     <div className="card">
       <div className="card-header">
@@ -40,11 +67,9 @@ export default function GridHealthPanel() {
         <div className="insight-panel" style={{ marginTop: 16 }}>
           <div className="insight-panel-label">Simulation Insight</div>
           <p>
-            The current scenario shows a <strong>12.8% energy reduction</strong> compared
-            to the baseline, primarily driven by PUE optimization and scheduled training
-            delays during off-peak pricing.
+            {gh.insight_message}
           </p>
-          <a href="#grid-analysis">View Detailed Grid Analysis →</a>
+          <Link to="/grid-analysis">View Detailed Grid Analysis →</Link>
         </div>
       </div>
     </div>
