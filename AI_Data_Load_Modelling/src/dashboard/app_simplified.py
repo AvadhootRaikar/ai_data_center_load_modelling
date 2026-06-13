@@ -23,7 +23,14 @@ from simulation.power_model import convert_training_profile_to_center
 from simulation.optimization_scenarios import apply_optimization_scenario, build_optimization_audit
 from simulation.capacity_analysis import run_capacity_analysis
 from simulation.run_simulation import run_hpc_simulation, calculate_energy
-from simulation.cost_model import build_tou_price_table, calculate_time_of_day_costs, calculate_costs
+from simulation.cost_model import (
+    build_tou_price_table,
+    calculate_time_of_day_costs,
+    calculate_costs,
+    calculate_time_of_use_costs,
+    calculate_time_of_day_costs_with_smard,
+    get_smard_status,
+)
 from simulation.ui_and_simulation_improvements import (
     load_grid_pricing_data, get_auto_pricing_for_hour, 
     calculate_workload_cost_by_time, calculate_workload_carbon_by_time,
@@ -194,6 +201,38 @@ def create_animated_metric(value, label, unit, delta=None, icon="📊", color="#
 def create_interactive_heatmap(data_dict, title, color_scale="RdYlGn_r"):
     """Create interactive heatmap with Plotly"""
     hours = list(range(24))
+    
+    fig = go.Figure(data=go.Heatmap(
+        z=[list(data_dict.values())],
+        x=hours,
+        colorscale=color_scale,
+        hovertemplate='Hour %{x}: %{z:.2f}<extra></extra>',
+        colorbar=dict(title=title)
+    ))
+    
+    fig.update_layout(height=150, margin=dict(l=20, r=20, t=50, b=20))
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def get_cost_with_smard(baseline_cost):
+    """Calculate cost using SMARD live prices or fallback"""
+    try:
+        smard_status = get_smard_status()
+        if smard_status.get("smard_module_available"):
+            # SMARD API is available, apply realistic price adjustment
+            from simulation.cost_model import get_live_hourly_prices
+            prices, is_live = get_live_hourly_prices()
+            if is_live and prices:
+                # Calculate average from live prices (already in EUR/kWh)
+                avg_price = sum(prices.values()) / len(prices)
+                # Compare to baseline avg (around 0.039 EUR/kWh)
+                price_ratio = avg_price / 0.039 if avg_price > 0 else 1.0
+                calculated_cost = baseline_cost * price_ratio
+                return calculated_cost, "LIVE SMARD API 🟢"
+    except:
+        pass
+    
+    return baseline_cost, "Static Fallback 🟡"
     values = [data_dict.get(h, 0) for h in hours]
     
     fig = go.Figure(data=go.Bar(
@@ -350,8 +389,20 @@ with st.sidebar:
     
     st.divider()
     
-    # Main Run Button
-    st.markdown("### 🚀 Ready?")
+    # SMARD Data Source Indicator
+    st.markdown("### 📡 Data Source")
+    try:
+        smard_status = get_smard_status()
+        if smard_status.get("smard_module_available"):
+            st.success("🟢 **LIVE SMARD API** Active")
+            st.caption("Real German electricity prices")
+        else:
+            st.warning("🟡 **Static Fallback** Pricing")
+            st.caption("Time-of-use table")
+    except Exception as e:
+        st.info("ℹ️ Using default pricing")
+    
+    st.divider()
     if st.button("Run Optimization", use_container_width=True, type="primary"):
         st.session_state.run_simulation = True
 
@@ -396,8 +447,11 @@ with tab1:
         optimized_cost = baseline_cost
         optimized_carbon = baseline_carbon
     
+    # Apply SMARD pricing adjustment
+    optimized_cost_adjusted, cost_source = get_cost_with_smard(optimized_cost)
+    
     energy_savings = ((baseline_energy - optimized_energy) / baseline_energy * 100)
-    cost_savings = ((baseline_cost - optimized_cost) / baseline_cost * 100)
+    cost_savings = ((baseline_cost - optimized_cost_adjusted) / baseline_cost * 100)
     carbon_savings = ((baseline_carbon - optimized_carbon) / baseline_carbon * 100)
     
     # Main metrics in 3 columns
@@ -415,13 +469,14 @@ with tab1:
     
     with col2:
         create_animated_metric(
-            f"€{optimized_cost:.0f}",
+            f"€{optimized_cost_adjusted:.0f}",
             "Cost",
             "EUR",
             delta=cost_savings,
             icon="💰",
             color="#764ba2"
         )
+        st.caption(f"📊 {cost_source}")
     
     with col3:
         create_animated_metric(
@@ -441,7 +496,7 @@ with tab1:
     """, unsafe_allow_html=True)
     
     annual_energy = (baseline_energy - optimized_energy) * 365
-    annual_cost = (baseline_cost - optimized_cost) * 365
+    annual_cost = (baseline_cost - optimized_cost_adjusted) * 365
     annual_carbon = (baseline_carbon - optimized_carbon) * 365
     
     ann_col1, ann_col2, ann_col3 = st.columns(3)
