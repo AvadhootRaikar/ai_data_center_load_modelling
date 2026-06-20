@@ -27,7 +27,6 @@ from simulation.cost_model import (
     build_tou_price_table,
     calculate_time_of_day_costs,
     calculate_costs,
-    calculate_time_of_use_costs,
     calculate_time_of_day_costs_with_smard,
     get_smard_status,
 )
@@ -36,6 +35,7 @@ from simulation.ui_and_simulation_improvements import (
     calculate_workload_cost_by_time, calculate_workload_carbon_by_time,
     calculate_grid_stability_impact, apply_realistic_pue_profile
 )
+from simulation.water_model import WaterUsageModel, ThermalAwareScheduler
 
 # ============================================================================
 # PAGE CONFIG & THEME
@@ -454,8 +454,15 @@ with tab1:
     cost_savings = ((baseline_cost - optimized_cost_adjusted) / baseline_cost * 100)
     carbon_savings = ((baseline_carbon - optimized_carbon) / baseline_carbon * 100)
     
-    # Main metrics in 3 columns
-    col1, col2, col3 = st.columns(3)
+    # Calculate water usage metrics
+    water_model = WaterUsageModel(cooling_type='wet')
+    it_power_kw = optimized_energy * 1000 / 24  # Convert MWh/day to kW
+    pue_data = water_model.calculate_dynamic_pue(it_power_kw, 20)  # 20°C ambient
+    water_data = water_model.calculate_water_usage(pue_data['cooling_power_kw'], 20)
+    water_annual = water_data['water_liters_per_year']
+    
+    # Main metrics in 4 columns
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         create_animated_metric(
@@ -487,6 +494,18 @@ with tab1:
             icon="🌱",
             color="#00A651"
         )
+    
+    with col4:
+        water_reduction = 15  # Estimated % reduction with optimization
+        create_animated_metric(
+            f"{water_annual/1000:.1f}",
+            "Water Usage",
+            "m³/year",
+            delta=water_reduction,
+            icon="💧",
+            color="#0891b2"
+        )
+        st.caption(f"🌡️ Cooling Load: {pue_data['cooling_power_kw']:.0f} kW")
     
     st.divider()
     
@@ -651,6 +670,105 @@ with tab2:
             - 3x dirtier grid
             - Consider postponing
             """)
+        
+        st.divider()
+        
+        # ⭐ Thermal-Aware Scheduling Section
+        if st.checkbox("🌡️ Show Thermal-Aware Scheduling (Cooling Efficiency)", value=False):
+            st.markdown("### 🌡️ Thermal-Aware Scheduling Recommendations")
+            st.info("""
+            💧 **Water Usage Optimization**: Run workloads during cooler hours to reduce 
+            cooling power and water consumption. This saves water costs (€2/m³) and improves 
+            facility efficiency.
+            """)
+            
+            # Create thermal scheduling recommendations
+            water_model = WaterUsageModel(cooling_type='wet')
+            scheduler = ThermalAwareScheduler(water_model)
+            
+            # Typical German ambient temperatures by hour
+            ambient_temps_by_hour = {
+                0: 16, 1: 15, 2: 14, 3: 14, 4: 15, 5: 16,
+                6: 17, 7: 19, 8: 21, 9: 23, 10: 24, 11: 25,
+                12: 25, 13: 25, 14: 24, 15: 23, 16: 22, 17: 20,
+                18: 19, 19: 18, 20: 17, 21: 16, 22: 16, 23: 16
+            }
+            
+            # Carbon intensity (g CO2/kWh)
+            carbon_by_hour = {
+                0: 100, 1: 120, 2: 150, 3: 160, 4: 140, 5: 100,
+                6: 200, 7: 220, 8: 180, 9: 120, 10: 80, 11: 85,
+                12: 75, 13: 80, 14: 100, 15: 120, 16: 180, 17: 220,
+                18: 180, 19: 150, 20: 120, 21: 110, 22: 100, 23: 100
+            }
+            
+            recommendations_df = scheduler.get_hourly_recommendations(
+                ambient_temps_by_hour, 
+                carbon_intensity_by_hour=carbon_by_hour
+            )
+            
+            # Thermal score heatmap
+            fig_thermal = go.Figure(
+                data=go.Heatmap(
+                    z=[recommendations_df['thermal_score'].tolist()],
+                    x=recommendations_df['hour'],
+                    y=['Thermal Score'],
+                    colorscale='RdYlGn',
+                    text=recommendations_df['recommendation'],
+                    hovertemplate='Hour %{x}:00<br>Score: %{z}<br>%{text}<extra></extra>'
+                )
+            )
+            fig_thermal.update_layout(
+                title="🌡️ Thermal-Aware Scheduling Scores (0-100: Higher = Better for Cooling)",
+                xaxis_title="Hour of Day",
+                height=300,
+                yaxis_title="",
+                coloraxis_colorbar=dict(title="Score")
+            )
+            st.plotly_chart(fig_thermal, use_container_width=True)
+            
+            # Display recommendations table
+            st.markdown("#### Hourly Recommendations:")
+            recommendations_display = recommendations_df.copy()
+            recommendations_display.columns = ['Hour', 'Ambient Temp (°C)', 'Carbon (g CO₂/kWh)', 'Thermal Score', 'Recommendation']
+            st.dataframe(recommendations_display, use_container_width=True, hide_index=True)
+            
+            # Water savings summary
+            st.markdown("#### 💧 Water Usage Impact:")
+            optimal_hours = recommendations_df[recommendations_df['thermal_score'] >= 90]
+            avg_temp_optimal = optimal_hours['ambient_temp'].mean()
+            
+            # Calculate water usage comparison
+            baseline_cooling_kw = 30
+            water_baseline = water_model.calculate_water_usage(baseline_cooling_kw, 20)
+            water_optimal = water_model.calculate_water_usage(baseline_cooling_kw, avg_temp_optimal)
+            
+            water_reduction_annual = water_baseline['water_liters_per_year'] - water_optimal['water_liters_per_year']
+            water_cost_reduction = water_reduction_annual / 1000 * 2.0  # €2/m³
+            
+            summary_col1, summary_col2, summary_col3 = st.columns(3)
+            
+            with summary_col1:
+                st.metric(
+                    "💧 Water Saved/Year",
+                    f"{water_reduction_annual/1000:.1f} m³",
+                    f"{(water_reduction_annual/water_baseline['water_liters_per_year']*100):.1f}% reduction"
+                )
+            
+            with summary_col2:
+                st.metric(
+                    "💰 Cost Savings",
+                    f"€{water_cost_reduction:.0f}/year",
+                    "@ €2.00/m³"
+                )
+            
+            with summary_col3:
+                optimal_count = len(optimal_hours)
+                st.metric(
+                    "✅ Optimal Hours",
+                    f"{optimal_count}/24",
+                    f"{optimal_count/24*100:.0f}% of day"
+                )
 
 # ============================================================================
 # TAB 3: DETAILS
@@ -765,6 +883,92 @@ with tab4:
             hovermode="x unified"
         )
         st.plotly_chart(fig_cost_cumulative, use_container_width=True)
+    
+    # 💧 Water Usage & Cooling Analysis
+    with st.expander("💧 Water Usage & Cooling Analysis", expanded=False):
+        st.markdown("### 💧 Water Consumption Breakdown")
+        
+        water_model = WaterUsageModel(cooling_type='wet')
+        
+        # Calculate water for different IT power levels
+        it_powers = [50, 100, 150, 200, 300]
+        water_hourly = []
+        water_annual = []
+        water_costs = []
+        
+        for it_pow in it_powers:
+            pue_data = water_model.calculate_dynamic_pue(it_pow, 20)
+            water_data = water_model.calculate_water_usage(pue_data['cooling_power_kw'], 20)
+            cost_data = water_model.calculate_water_cost(water_data['water_liters_per_year'])
+            
+            water_hourly.append(water_data['water_liters_per_hour'])
+            water_annual.append(water_data['water_liters_per_year'] / 1000)  # Convert to m³
+            water_costs.append(cost_data['annual_cost_eur'])
+        
+        # Water usage chart
+        fig_water = go.Figure()
+        fig_water.add_trace(go.Bar(
+            x=[f"{p} kW" for p in it_powers],
+            y=water_annual,
+            marker=dict(color=water_annual, colorscale='Blues', showscale=True),
+            text=[f"{w:.1f} m³" for w in water_annual],
+            textposition='outside',
+            name='Annual Water Usage'
+        ))
+        fig_water.update_layout(
+            title="💧 Annual Water Consumption by IT Load",
+            xaxis_title="IT Equipment Power",
+            yaxis_title="Water Usage (m³/year)",
+            template="plotly_white",
+            height=400,
+            hovermode="x"
+        )
+        st.plotly_chart(fig_water, use_container_width=True)
+        
+        # Water cost analysis
+        col_wtr1, col_wtr2, col_wtr3 = st.columns(3)
+        
+        with col_wtr1:
+            water_model_100kw = WaterUsageModel(cooling_type='wet')
+            pue_100 = water_model_100kw.calculate_dynamic_pue(100, 20)
+            water_100 = water_model_100kw.calculate_water_usage(pue_100['cooling_power_kw'], 20)
+            cost_100 = water_model_100kw.calculate_water_cost(water_100['water_liters_per_year'])
+            
+            st.metric(
+                "💧 Water (100 kW IT)",
+                f"{water_100['water_m3_per_year']:.1f} m³/year",
+                f"€{cost_100['annual_cost_eur']:.0f}/year"
+            )
+        
+        with col_wtr2:
+            pue_200 = water_model.calculate_dynamic_pue(200, 20)
+            water_200 = water_model.calculate_water_usage(pue_200['cooling_power_kw'], 20)
+            cost_200 = water_model.calculate_water_cost(water_200['water_liters_per_year'])
+            
+            st.metric(
+                "💧 Water (200 kW IT)",
+                f"{water_200['water_m3_per_year']:.1f} m³/year",
+                f"€{cost_200['annual_cost_eur']:.0f}/year"
+            )
+        
+        with col_wtr3:
+            pue_300 = water_model.calculate_dynamic_pue(300, 20)
+            water_300 = water_model.calculate_water_usage(pue_300['cooling_power_kw'], 20)
+            cost_300 = water_model.calculate_water_cost(water_300['water_liters_per_year'])
+            
+            st.metric(
+                "💧 Water (300 kW IT)",
+                f"{water_300['water_m3_per_year']:.1f} m³/year",
+                f"€{cost_300['annual_cost_eur']:.0f}/year"
+            )
+        
+        st.markdown("---")
+        st.info("""
+        **German Water Pricing Average**: €2.00/m³ (range: €1.50-2.50)
+        - Includes water supply and wastewater treatment
+        - Cooler ambient temperatures reduce cooling load → less water needed
+        - Wet cooling typically requires 1 L/hour per 2.4 kW of cooling power
+        """)
     
     # Power profile
     with st.expander("⚡ Power Profile Over Time", expanded=False):

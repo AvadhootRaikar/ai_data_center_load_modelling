@@ -47,17 +47,17 @@ def fetch_smard_index() -> Optional[List[int]]:
         data = response.json()
         timestamps = data.get('timestamps', [])
         
-        logger.info(f"✅ SMARD index fetched: {len(timestamps)} weeks available")
+        logger.info(f" SMARD index fetched: {len(timestamps)} weeks available")
         return timestamps
     
     except requests.exceptions.ConnectionError:
-        logger.warning("⚠️ SMARD API connection failed - will use fallback pricing")
+        logger.warning(" SMARD API connection failed - will use fallback pricing")
         return None
     except requests.exceptions.Timeout:
-        logger.warning("⚠️ SMARD API timeout - will use fallback pricing")
+        logger.warning(" SMARD API timeout - will use fallback pricing")
         return None
     except Exception as e:
-        logger.warning(f"⚠️ SMARD API error: {e} - will use fallback pricing")
+        logger.warning(f" SMARD API error: {e} - will use fallback pricing")
         return None
 
 
@@ -89,11 +89,11 @@ def fetch_smard_prices(timestamp_ms: int) -> Optional[Dict[int, float]]:
             hour = dt.hour
             prices_by_hour[hour] = price / 1000  # Convert to EUR/kWh (from EUR/MWh ÷ 1000)
         
-        logger.info(f"✅ SMARD prices fetched: {len(prices_by_hour)} hours available")
+        logger.info(f" SMARD prices fetched: {len(prices_by_hour)} hours available")
         return prices_by_hour if prices_by_hour else None
     
     except Exception as e:
-        logger.warning(f"⚠️ Error fetching SMARD prices: {e}")
+        logger.warning(f" Error fetching SMARD prices: {e}")
         return None
 
 
@@ -128,7 +128,7 @@ def fetch_live_prices(target_date: Optional[datetime] = None) -> Optional[Dict[i
     # Check cache first
     cache_key = target_date.strftime("%Y-%m-%d")
     if cache_key in PRICE_CACHE:
-        logger.info(f"✅ Using cached prices for {cache_key}")
+        logger.info(f" Using cached prices for {cache_key}")
         return PRICE_CACHE[cache_key]
     
     try:
@@ -141,13 +141,13 @@ def fetch_live_prices(target_date: Optional[datetime] = None) -> Optional[Dict[i
         
         if prices:
             PRICE_CACHE[cache_key] = prices
-            logger.info(f"✅ Cached prices for {cache_key}")
+            logger.info(f" Cached prices for {cache_key}")
             return prices
         
         return None
     
     except Exception as e:
-        logger.warning(f"⚠️ Error fetching live prices: {e}")
+        logger.warning(f" Error fetching live prices: {e}")
         return None
 
 
@@ -207,10 +207,10 @@ def get_prices_with_fallback(target_date: Optional[datetime] = None) -> Tuple[Di
         live_prices = fetch_live_prices(target_date)
         if live_prices:
             full_curve = build_daily_price_curve(live_prices)
-            logger.info("✅ Using LIVE SMARD prices")
+            logger.info(" Using LIVE SMARD prices")
             return full_curve, True
         else:
-            logger.warning("⚠️ SMARD data unavailable - using static fallback")
+            logger.warning(" SMARD data unavailable - using static fallback")
             full_curve = build_daily_price_curve(None)
             return full_curve, False
     
@@ -235,9 +235,9 @@ def export_prices_to_csv(prices_dict: Dict[int, float], output_path: str = "smar
         ]
         df = pd.DataFrame(rows)
         df.to_csv(output_path, index=False)
-        logger.info(f"✅ Prices exported to {output_path}")
+        logger.info(f" Prices exported to {output_path}")
     except Exception as e:
-        logger.warning(f"⚠️ Could not export prices: {e}")
+        logger.warning(f" Could not export prices: {e}")
 
 
 # Example usage / Testing
@@ -267,4 +267,4 @@ if __name__ == "__main__":
     print("\n\nTest 2: Exporting prices to CSV...")
     export_prices_to_csv(prices)
     
-    print("\n✅ SMARD integration test complete!")
+    print("\n SMARD integration test complete!")

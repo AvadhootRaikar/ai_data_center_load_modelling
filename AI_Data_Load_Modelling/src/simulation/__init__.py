@@ -21,6 +21,9 @@ from . import run_simulation
 from . import cost_model
 from . import carbon_model
 from . import energy_projection
+from . import water_cooling_model
+from . import water_model
+from . import optimization_scenarios
 
 __all__ = [
     "profile_builder",
@@ -30,4 +33,7 @@ __all__ = [
     "cost_model",
     "carbon_model",
     "energy_projection",
+    "water_cooling_model",
+    "water_model",
+    "optimization_scenarios",
 ]

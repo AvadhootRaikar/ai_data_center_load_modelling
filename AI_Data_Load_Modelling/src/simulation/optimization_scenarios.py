@@ -207,3 +207,127 @@ def build_optimization_audit(
     }
     
     return audit_df, audit_notes
+
+
+def apply_thermal_aware_scheduling(
+    profile,
+    ambient_temps_celsius,
+    price_series,
+    carbon_series,
+    cooling_type="wet",
+    baseline_pue=1.3,
+):
+    """
+    Apply thermal-aware scheduling optimization to minimize cost and carbon simultaneously.
+    
+    This scenario combines three optimization drivers:
+    1. Cooling Efficiency: Run workloads during cooler hours (lower PUE)
+    2. Cost Efficiency: Run workloads during low-price hours (EPEX SPOT/SMARD)
+    3. Carbon Efficiency: Run workloads during low-carbon hours (SMARD)
+    
+    Physics:
+    - Higher ambient temperature → higher PUE (more cooling energy)
+    - Cooling consumes 10-30% of total facility power
+    - Water cooling is most efficient at cooler temperatures
+    
+    Args:
+        profile: DataFrame with power profile (gpu_power_w, delta_seconds, etc.)
+        ambient_temps_celsius: Series of 24-hour ambient temperatures
+        price_series: Series of 24-hour electricity prices (EUR/kWh)
+        carbon_series: Series of 24-hour carbon intensity (g CO2/kWh)
+        cooling_type: "wet" or "dry" cooling
+        baseline_pue: Reference PUE at 20°C (typically 1.25-1.50)
+    
+    Returns:
+        tuple: (optimized_profile, recommendations) where recommendations contains
+               best hours to run workloads
+    """
+    from .water_cooling_model import (
+        calculate_dynamic_pue,
+        calculate_water_usage,
+        get_thermal_aware_scheduling_recommendations,
+    )
+    
+    # Enrich profile with water/cooling metrics
+    enriched_profile = profile.copy()
+    
+    # Calculate dynamic PUE for each hour
+    dynamic_pues = []
+    cooling_power_list = []
+    water_usage_list = []
+    
+    gpu_power_kw = profile.get("gpu_power_w", pd.Series([0] * len(profile))) / 1000.0
+    cpu_power_kw = profile.get("cpu_power_w", pd.Series([0] * len(profile))) / 1000.0 if "cpu_power_w" in profile.columns else gpu_power_kw * 0.2
+    it_power_kw = gpu_power_kw + cpu_power_kw
+    
+    for idx in range(len(profile)):
+        ambient_temp = ambient_temps_celsius.iloc[idx] if isinstance(ambient_temps_celsius, pd.Series) else 20.0
+        workload = (gpu_power_kw.iloc[idx] / gpu_power_kw.max()) if gpu_power_kw.max() > 0 else 0
+        
+        # Dynamic PUE based on temperature and workload
+        pue = calculate_dynamic_pue(
+            ambient_temp_celsius=ambient_temp,
+            baseline_pue=baseline_pue,
+            workload_intensity=workload
+        )
+        dynamic_pues.append(pue)
+        
+        # Cooling power = (IT Power × PUE) - IT Power
+        total_facility_kw = it_power_kw.iloc[idx] * pue
+        cooling_kw = total_facility_kw - it_power_kw.iloc[idx]
+        cooling_power_list.append(cooling_kw)
+        
+        # Water usage
+        water_lps, _ = calculate_water_usage(
+            gpu_power_kw=gpu_power_kw.iloc[idx],
+            cpu_power_kw=cpu_power_kw.iloc[idx],
+            cooling_type=cooling_type,
+            ambient_temp_celsius=ambient_temp,
+        )
+        water_usage_list.append(water_lps)
+    
+    enriched_profile["dynamic_pue"] = dynamic_pues
+    enriched_profile["cooling_power_kw"] = cooling_power_list
+    enriched_profile["water_usage_lps"] = water_usage_list
+    
+    # Get recommendations
+    recommendations = get_thermal_aware_scheduling_recommendations(
+        profile_df=enriched_profile,
+        ambient_temp_series=ambient_temps_celsius,
+        price_series=price_series,
+        carbon_series=carbon_series,
+    )
+    
+    # Apply optimization: scale down power during non-optimal hours
+    optimized = enriched_profile.copy()
+    worst_hours = set(recommendations["avoid_hours"])
+    
+    for col in ["gpu_power_w", "cpu_power_w"]:
+        if col in optimized.columns:
+            # Reduce power by 30% during worst hours, maintain during best hours
+            optimized[col] = optimized[col].apply(
+                lambda x: x * 0.7 if optimized.index.tolist().index(optimized[optimized[col] == x].index[0]) in worst_hours else x
+            )
+    
+    return optimized, recommendations
+
+
+def get_scenario_list():
+    """
+    Returns available optimization scenarios and their descriptions.
+    
+    Returns:
+        Dict: Scenario names and descriptions
+    """
+    return {
+        "baseline": "No optimization - reference case",
+        "gpu_limiting": "Reduce GPU frequency/power (5-50% reduction)",
+        "pue_improvement": "Improve cooling efficiency (PUE -2-8%)",
+        "time_shifting": "Shift workload to low-price/low-carbon hours",
+        "load_balancing": "Distribute load across multiple data centers",
+        "smart_scheduling": "Combine time-shifting and load balancing",
+        "renewable_alignment": "Run during high renewable generation",
+        "thermal_aware": "Optimize for temperature + cost + carbon simultaneously",
+        "water_efficient": "Minimize water consumption (dry cooling emphasis)",
+        "multi_strategy": "Combined GPU limiting + PUE + scheduling",
+    }
